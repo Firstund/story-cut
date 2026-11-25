@@ -1,0 +1,4 @@
+# Optional dialogue-box OCR (off by default).
+# Install only if you pass --ocr:
+#   python -m pip install -r requirements-ocr.txt
+easyocr>=1.7

@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "story-cut"
+version = "0.1.0"
+description = "Local-first game-story segment analysis that writes an OpenReel edit draft."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "Firstund" }]
+dependencies = [
+  "scenedetect[opencv]>=0.6.4",
+  "faster-whisper>=1.0.3",
+  "httpx>=0.27",
+  "numpy>=1.24",
+]
+
+[project.optional-dependencies]
+ocr = ["easyocr>=1.7"]
+dev = ["pytest>=8"]
+
+[project.scripts]
+story-cut = "story_cut.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
