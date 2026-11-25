@@ -97,6 +97,13 @@ def merge_kept(
     return merged
 
 
+def drop_short_ranges(ranges: list[KeptRange], min_keep: float) -> list[KeptRange]:
+    """Drop isolated kept ranges shorter than min_keep seconds (skill flashes, etc.)."""
+    if min_keep <= 0:
+        return ranges
+    return [item for item in ranges if item.duration + 1e-9 >= min_keep]
+
+
 def remap_time(source_time: float, ranges: list[KeptRange]) -> float | None:
     """Map a source timestamp into the concatenated output timeline."""
     out = 0.0

@@ -5,10 +5,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from story_cut.cache import AnalysisCache
-from story_cut.classify import Classification, VisionBackend, build_backend
+from story_cut.classify import PROMPT_VERSION, Classification, VisionBackend, build_backend
 from story_cut.fftool import MediaInfo, probe
 from story_cut.frames import extract_frames
-from story_cut.merge import AnalyzedShot, KeptRange, apply_keep, merge_kept
+from story_cut.merge import AnalyzedShot, KeptRange, apply_keep, drop_short_ranges, merge_kept
 from story_cut.export_openreel import build_openreel_edit
 from story_cut.report import write_reports
 from story_cut.scenes import Shot, detect_shots, shots_to_json
@@ -25,9 +25,11 @@ class AnalyzeOptions:
     api_key: str | None = None
     keep: tuple[str, ...] = ("cutscene", "dialogue")
     pad: float = 0.25
-    min_shot: float = 0.5
+    min_shot: float = 1.5
     max_segment: float = 20.0
     min_confidence: float = 0.0
+    min_keep: float = 2.0
+    merge_gap: float = 1.0
     frame_count: int = 3
     ocr: bool = False
     cache_dir: Path | None = None
@@ -68,8 +70,14 @@ def analyze(opts: AnalyzeOptions) -> AnalyzeResult:
 
     log("[2/6] 장면(샷)을 나누는 중입니다...")
     cached_shots = cache.read("scenes.json")
-    if cached_shots:
-        shots = [Shot(**item) for item in cached_shots]
+    scenes_ok = (
+        isinstance(cached_shots, dict)
+        and cached_shots.get("min_shot") == opts.min_shot
+        and cached_shots.get("max_segment") == opts.max_segment
+        and isinstance(cached_shots.get("shots"), list)
+    )
+    if scenes_ok:
+        shots = [Shot(**item) for item in cached_shots["shots"]]
         log(f"    캐시에서 {len(shots)}개 샷을 불러왔습니다.")
     else:
         shots = detect_shots(
@@ -78,7 +86,11 @@ def analyze(opts: AnalyzeOptions) -> AnalyzeResult:
             max_segment=opts.max_segment,
             duration=media.duration,
         )
-        cache.write("scenes.json", shots_to_json(shots))
+        cache.write("scenes.json", {
+            "min_shot": opts.min_shot,
+            "max_segment": opts.max_segment,
+            "shots": shots_to_json(shots),
+        })
         log(f"    샷 {len(shots)}개를 찾았습니다.")
 
     log("[3/6] 대사를 받아쓰는 중입니다...")
@@ -106,7 +118,7 @@ def analyze(opts: AnalyzeOptions) -> AnalyzeResult:
     analyzed: list[AnalyzedShot] = []
     log(f"[4/6] 구간을 분류하는 중입니다... (백엔드: {backend.name}, 모델: {backend.model})")
     for shot in shots:
-        key = cache.classification_key(shot.start, shot.end, backend.name, backend.model)
+        key = cache.classification_key(shot.start, shot.end, backend.name, backend.model, PROMPT_VERSION)
         snippet = transcript.snippet(shot.start, shot.end)
         ocr_text = ""
         frame_paths: list[Path] = []
@@ -163,7 +175,16 @@ def analyze(opts: AnalyzeOptions) -> AnalyzeResult:
 
     log("[5/6] 스토리 구간을 남기고 이어 붙입니다...")
     apply_keep(analyzed, set(opts.keep), opts.min_confidence)
-    ranges = merge_kept(analyzed, pad=opts.pad, media_duration=media.duration)
+    ranges = merge_kept(
+        analyzed,
+        pad=opts.pad,
+        media_duration=media.duration,
+        max_gap=opts.merge_gap,
+    )
+    before = len(ranges)
+    ranges = drop_short_ranges(ranges, opts.min_keep)
+    if before and len(ranges) < before:
+        log(f"    {opts.min_keep:.1f}초보다 짧은 조각 {before - len(ranges)}개를 버렸습니다.")
     kept_dur = sum(r.duration for r in ranges)
     log(f"    남긴 클립 {len(ranges)}개, 약 {kept_dur:.1f}초 / 원본 {media.duration:.1f}초")
 

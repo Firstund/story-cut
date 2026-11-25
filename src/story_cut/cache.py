@@ -29,8 +29,15 @@ class AnalysisCache:
         path = self.root / name
         path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    def classification_key(self, start: float, end: float, backend: str, model: str) -> str:
-        raw = f"{start:.3f}:{end:.3f}:{backend}:{model}"
+    def classification_key(
+        self,
+        start: float,
+        end: float,
+        backend: str,
+        model: str,
+        prompt_version: str = "1",
+    ) -> str:
+        raw = f"{start:.3f}:{end:.3f}:{backend}:{model}:{prompt_version}"
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:20]
 
     def get_classifications(self) -> dict[str, Any]:

@@ -8,6 +8,10 @@ import numpy as np
 
 from story_cut.fftool import run
 
+KOREAN_INITIAL_PROMPT = (
+    "한국어 게임 방송입니다. 게임 속 대사와 진행자의 말이 섞여 있을 수 있습니다."
+)
+
 
 @dataclass
 class Word:
@@ -77,13 +81,15 @@ def transcribe(
                 model = WhisperModel(model_size, device=device, compute_type="float32")
             else:
                 raise
-        segments, info = model.transcribe(
-            audio,
-            language=language or None,
-            word_timestamps=True,
-            vad_filter=True,
-            beam_size=1,
-        )
+        transcribe_kwargs = {
+            "language": language or None,
+            "word_timestamps": True,
+            "vad_filter": True,
+            "beam_size": 1,
+        }
+        if language and language.lower().startswith("ko"):
+            transcribe_kwargs["initial_prompt"] = KOREAN_INITIAL_PROMPT
+        segments, info = model.transcribe(audio, **transcribe_kwargs)
         words: list[Word] = []
         texts: list[str] = []
         for segment in segments:

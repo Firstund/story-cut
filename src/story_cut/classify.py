@@ -13,18 +13,28 @@ import httpx
 
 from story_cut import LABELS
 
+# Bump this when SYSTEM_PROMPT changes so classification cache is not reused.
+PROMPT_VERSION = "2"
+
 SYSTEM_PROMPT = """You label a short game-play video segment for an editor.
 Return ONLY a JSON object with these keys:
 {"label":"cutscene"|"dialogue"|"combat"|"exploration"|"menu"|"other","confidence":0.0-1.0,"reason":"short reason in Korean or English"}
 
+Judge the label mainly from the FRAMES. The transcript is microphone audio from the recording. In stream or Let's Play videos it is often the streamer talking ABOUT the game, not in-game voice. Spoken words in the transcript are not enough to choose "dialogue".
+
 Label meanings:
-- cutscene: in-engine or pre-rendered story cinematic; the player is mostly watching
-- dialogue: conversation, talking, dialogue boxes, NPC speech
-- combat: fighting, a boss, skills being used in battle
-- exploration: walking, traveling, looting, puzzles, looking around
-- menu: inventory, map, settings, title screen, loading
-- other: death screen, AFK, junk, unclear
-Do not add markdown. Do not invent events that the frames and transcript do not support.
+- cutscene: a story cinematic the player is mostly watching and cannot control. Ignore the streamer reacting to it.
+- dialogue: in-game character conversation — a game dialogue box, character names, or clearly in-game lines on screen. Not streamer commentary, not stream/party chat logs.
+- combat: fighting, a boss, or a skill/ultimate animation the player triggered. Flashy battle camerawork is still combat, not a cutscene.
+- exploration: walking, traveling, looting, puzzles, looking around, even if the streamer is chatting.
+- menu: inventory, map, settings, title, loading.
+- other: tutorial or system UI (skill tooltips, control prompts like "Press F", elemental/reaction help), death/AFK, or unclear.
+
+If the streamer is talking but the picture is walking, fighting, a menu, or a tutorial, label the gameplay, not dialogue.
+If a real story cutscene or in-game dialogue box is clearly on screen, still use cutscene or dialogue even when the streamer talks over it.
+Do not treat chat logs, viewer chat, or party chat as dialogue.
+Use lower confidence (for example 0.4-0.7) when you are unsure. Do not default to 0.95.
+Do not add markdown. Do not invent events the frames do not support.
 """
 
 
@@ -70,12 +80,12 @@ def parse_classification(text: str) -> Classification:
 
 def _user_prompt(transcript: str, ocr_text: str, shot_range: str) -> str:
     parts = [f"Segment time range (seconds): {shot_range}"]
-    parts.append("Transcript (speech in this range, may be empty):")
+    parts.append("Microphone transcript (may be a streamer talking over the game, not in-game voice; may be empty):")
     parts.append(transcript.strip() or "(no speech)")
     if ocr_text.strip():
         parts.append("On-screen text (OCR, may be noisy):")
         parts.append(ocr_text.strip())
-    parts.append("Look at the attached frames and return the JSON label.")
+    parts.append("Label this segment from the attached frames. Do not mark it as dialogue only because the microphone transcript has speech.")
     return "\n".join(parts)
 
 

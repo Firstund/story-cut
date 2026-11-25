@@ -53,7 +53,7 @@ python -m pip install -e .
 1. [LM Studio](https://lmstudio.ai)를 설치합니다.
 2. 앱에서 `Qwen3-VL 8B` (또는 비슷한 Qwen3-VL 8B 양자화 모델, 예: Q4)를 검색해 받습니다.
 3. **Local Server** (로컬 서버)를 포트 `1234`로 시작합니다. 주소는 보통 `http://localhost:1234`입니다.
-4. 서버 화면에 보이는 **모델 이름**을 복사합니다. 기본값 `qwen3-vl-8b`와 다르면 실행할 때 `--model`에 그 이름을 그대로 넣습니다.
+4. 서버 화면에 보이는 **모델 이름**을 복사합니다. `qwen/qwen3-vl-8b`처럼 기본값과 다르면 실행할 때 `--model`에 그 이름을 그대로 넣습니다.
 
 16GB 메모리에서 모델이 안 올라가면, 더 작은 양자화(Q4) 버전을 받아 보세요.
 
@@ -76,12 +76,12 @@ story-cut analyze sample.mp4 --out sample-edit.json --backend mock --whisper-mod
 실제 게임 영상을 분류하려면 LM Studio를 켠 다음:
 
 ```powershell
-story-cut analyze "C:\Videos\gameplay.mp4" --out edit.json --backend lmstudio --model qwen3-vl-8b
+story-cut analyze "C:\Videos\gameplay.mp4" --out edit.json --backend lmstudio --model qwen/qwen3-vl-8b --language ko
 ```
 
-받아쓰기가 느리면 `--whisper-model base` 또는 `tiny`를 쓰세요. 더 정확하게는 기본값 `small`을 유지하세요. AMD 그래픽카드에서는 받아쓰기를 CPU로 돌립니다(`--device cpu`, 기본값).
+한국어 게임 방송이면 `--language ko`를 넣는 것이 좋습니다. 받아쓰기가 느리면 `--whisper-model base` 또는 `tiny`를 쓰세요. 더 정확하게는 기본값 `small`을 유지하세요. AMD 그래픽카드에서는 받아쓰기를 CPU로 돌립니다(`--device cpu`, 기본값).
 
-중단했다가 이어서 하려면, 같은 명령만 다시 실행하면 됩니다. 이미 분류한 구간은 캐시(기본: 결과 파일 옆 `.story-cut-cache`)에서 불러옵니다.
+중단했다가 이어서 하려면, 같은 명령만 다시 실행하면 됩니다. 장면 나누기와 받아쓰기는 캐시(기본: 결과 파일 옆 `.story-cut-cache`)에서 불러옵니다. 분류 규칙이 바뀐 버전으로 다시 돌리면 구간 분류만 처음부터 다시 합니다.
 
 ## OpenReel에서 초안 열기
 
@@ -98,13 +98,16 @@ story-cut analyze "C:\Videos\gameplay.mp4" --out edit.json --backend lmstudio --
 | `--backend mock` | 모델 없이 테스트용 순환 라벨 |
 | `--backend gemini` | 선택. Google Gemini API (`GEMINI_API_KEY` 필요) |
 | `--endpoint http://localhost:1234/v1` | 로컬 서버 주소 |
-| `--model 이름` | LM Studio에 보이는 모델 이름, 또는 Gemini 모델 ID |
+| `--model 이름` | LM Studio에 보이는 모델 이름 (예: `qwen/qwen3-vl-8b`) |
 | `--keep cutscene,dialogue` | 남길 라벨. 전투도 남기려면 `cutscene,dialogue,combat` |
 | `--pad 0.25` | 남긴 구간 앞뒤 여유(초) |
+| `--min-shot 1.5` | 이보다 짧은 샷은 이웃과 합칩니다 |
+| `--min-keep 2` | 이보다 짧은 남긴 조각은 버립니다 (전투 이펙트 등) |
+| `--merge-gap 1` | 이 간격 안의 남긴 구간은 하나로 합칩니다 |
 | `--max-segment 20` | 한 구간의 최대 길이(초) |
 | `--ocr` | 대사창 글자 읽기 (별도 설치, 기본은 꺼짐) |
 | `--skip-transcribe` | 받아쓰기 생략 |
-| `--language ko` | 받아쓰기 언어 고정. 기본 `auto` |
+| `--language ko` | 받아쓰기 언어 고정. 한국어 방송에 권장. 기본 `auto` |
 
 가능한 라벨: `cutscene`(컷신), `dialogue`(대사), `combat`(전투), `exploration`(탐험), `menu`(메뉴), `other`(기타).
 
@@ -144,10 +147,12 @@ OpenReel의 `parsePortableEdit`로 초안을 검사합니다.
 
 - "스토리 위주로 편집해 줘"를 한 문장으로 끝내 주지는 않습니다. AI가 초안을 짜면 사람이 검수합니다.
 - 로컬 8B 비전 모델의 분류는 틀릴 수 있습니다. 보고서의 이유와 신뢰도를 꼭 보세요.
+- 방송 영상에서는 진행자의 말과 게임 대사가 한 받아쓰기에 섞입니다. 프로그램은 화면을 보고 구분하려고 하지만, 진행자가 길게 말하는 구간을 스토리로 오인할 수 있습니다.
+- 튜토리얼, 채팅창, 전투 스킬 연출이 대사·컷신으로 잡히기도 합니다.
 - 3시간짜리 원본은 받아쓰기와 분류에 시간이 꽤 걸립니다. 캐시로 이어서 할 수 있습니다.
 - 장면이 부드럽게 넘어가면 샷이 덜 잘릴 수 있습니다.
 - OpenReel 가져오기는 원본 파일을 따로 연결해야 합니다.
-- 받아쓰기는 AMD에서 CPU(int8)가 기본입니다. 속도는 그래픽카드 가속보다 느립니다.
+- 받아쓰기는 AMD에서 CPU(int8)가 기본입니다. 속도는 그래픽카드 가속보다 느립니다. 게임 고유 명사는 잘못 적힐 수 있습니다.
 
 ## 앞으로 할 일
 

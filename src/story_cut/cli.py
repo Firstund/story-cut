@@ -41,7 +41,7 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument(
         "--model",
         default="qwen3-vl-8b",
-        help="모델 이름. LM Studio에 표시된 이름을 그대로 적어도 됩니다. Gemini는 모델 ID.",
+        help="모델 이름. LM Studio에 보이는 이름을 그대로 넣으세요. 예: qwen/qwen3-vl-8b",
     )
     analyze.add_argument("--api-key", default=None, help="API 키 (로컬 LM Studio는 보통 필요 없음)")
     analyze.add_argument(
@@ -50,9 +50,11 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"남길 라벨. 쉼표로 구분. 가능한 값: {', '.join(LABELS)}. 기본값: cutscene,dialogue",
     )
     analyze.add_argument("--pad", type=float, default=0.25, help="남긴 구간 앞뒤에 붙일 여유(초). 기본 0.25")
-    analyze.add_argument("--min-shot", type=float, default=0.5, help="이보다 짧은 샷은 이웃과 합칩니다. 기본 0.5")
+    analyze.add_argument("--min-shot", type=float, default=1.5, help="이보다 짧은 샷은 이웃과 합칩니다. 기본 1.5")
     analyze.add_argument("--max-segment", type=float, default=20.0, help="한 구간의 최대 길이(초). 기본 20")
     analyze.add_argument("--min-confidence", type=float, default=0.0, help="이 신뢰도 미만은 버립니다. 기본 0")
+    analyze.add_argument("--min-keep", type=float, default=2.0, help="이보다 짧은 남긴 구간(초)은 버립니다. 기본 2")
+    analyze.add_argument("--merge-gap", type=float, default=1.0, help="이 간격(초) 안의 남긴 구간은 하나로 합칩니다. 기본 1")
     analyze.add_argument("--frames", type=int, default=3, choices=(2, 3, 4), help="구간마다 보낼 프레임 수. 기본 3")
     analyze.add_argument("--ocr", action="store_true", help="대사창 OCR을 켭니다. EasyOCR 별도 설치 필요.")
     analyze.add_argument("--cache-dir", type=Path, default=None, help="이어서 분석할 캐시 폴더")
@@ -62,7 +64,7 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument(
         "--language",
         default="auto",
-        help="받아쓰기 언어. auto면 자동(한/영/일 등). 강제하려면 ko, ja, en",
+        help="받아쓰기 언어. auto면 자동. 한국어 방송은 ko를 권장합니다.",
     )
     analyze.add_argument("--skip-transcribe", action="store_true", help="받아쓰기를 건너뜁니다.")
     analyze.add_argument("--report-md", type=Path, default=None, help="마크다운 보고서 경로")
@@ -108,6 +110,8 @@ def main(argv: list[str] | None = None) -> int:
             min_shot=args.min_shot,
             max_segment=args.max_segment,
             min_confidence=args.min_confidence,
+            min_keep=args.min_keep,
+            merge_gap=args.merge_gap,
             frame_count=args.frames,
             ocr=args.ocr,
             cache_dir=args.cache_dir,

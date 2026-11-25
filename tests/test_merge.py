@@ -1,5 +1,5 @@
 from story_cut.classify import Classification
-from story_cut.merge import AnalyzedShot, apply_keep, cue_groups, merge_kept, remap_time, words_in_ranges
+from story_cut.merge import AnalyzedShot, apply_keep, cue_groups, drop_short_ranges, merge_kept, remap_time, words_in_ranges
 from story_cut.scenes import Shot
 from story_cut.transcribe import Transcript, Word
 
@@ -65,3 +65,31 @@ def test_subtitle_remap():
     assert abs(mapped[1][1] - 3.5) < 1e-6
     cues = cue_groups(mapped, max_chars=80, max_duration=10)
     assert len(cues) >= 1
+
+
+def test_merge_gap_closes_brief_holes():
+    shots = [
+        _shot(0, 0, 3, "dialogue"),
+        _shot(1, 3, 3.6, "exploration"),
+        _shot(2, 3.6, 8, "dialogue"),
+    ]
+    apply_keep(shots, {"cutscene", "dialogue"}, 0.0)
+    ranges = merge_kept(shots, pad=0.25, media_duration=12.0, max_gap=1.0)
+    assert len(ranges) == 1
+    assert abs(ranges[0].start - 0.0) < 1e-9
+    assert abs(ranges[0].end - 8.25) < 1e-9
+
+
+def test_drop_short_isolated_ranges():
+    shots = [
+        _shot(0, 0, 6, "dialogue"),
+        _shot(1, 6, 16, "combat"),
+        _shot(2, 16, 16.8, "cutscene"),
+        _shot(3, 16.8, 20, "combat"),
+    ]
+    apply_keep(shots, {"cutscene", "dialogue"}, 0.0)
+    ranges = merge_kept(shots, pad=0.0, media_duration=20.0, max_gap=0.0)
+    assert [round(r.duration, 2) for r in ranges] == [6.0, 0.8]
+    kept = drop_short_ranges(ranges, 2.0)
+    assert len(kept) == 1
+    assert kept[0].duration == 6.0
