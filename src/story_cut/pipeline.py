@@ -95,10 +95,17 @@ def analyze(opts: AnalyzeOptions) -> AnalyzeResult:
 
     log("[3/6] 대사를 받아쓰는 중입니다...")
     cached_tr = cache.read("transcript.json")
+    language_option = opts.language or "auto"
+    tr_ok = (
+        isinstance(cached_tr, dict)
+        and cached_tr.get("whisper_model") == opts.whisper_model
+        and cached_tr.get("language_option") == language_option
+        and "text" in cached_tr
+    )
     if opts.skip_transcribe:
         transcript = empty_transcript()
         log("    받아쓰기를 건너뛰었습니다.")
-    elif cached_tr:
+    elif tr_ok:
         transcript = transcript_from_json(cached_tr)
         log(f"    캐시된 받아쓰기 (언어: {transcript.language}, 단어 {len(transcript.words)}개)")
     else:
@@ -110,7 +117,11 @@ def analyze(opts: AnalyzeOptions) -> AnalyzeResult:
             language=opts.language,
             work_dir=cache.root,
         )
-        cache.write("transcript.json", transcript_to_json(transcript))
+        cache.write("transcript.json", {
+            "whisper_model": opts.whisper_model,
+            "language_option": language_option,
+            **transcript_to_json(transcript),
+        })
         log(f"    언어: {transcript.language}, 단어 {len(transcript.words)}개")
 
     backend = build_backend(opts.backend, endpoint=opts.endpoint, model=opts.model, api_key=opts.api_key)
