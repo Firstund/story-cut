@@ -14,7 +14,7 @@ import httpx
 from story_cut import LABELS
 
 # Bump this when SYSTEM_PROMPT changes so classification cache is not reused.
-PROMPT_VERSION = "2"
+PROMPT_VERSION = "3"
 
 SYSTEM_PROMPT = """You label a short game-play video segment for an editor.
 Return ONLY a JSON object with these keys:
@@ -25,7 +25,7 @@ Judge the label mainly from the FRAMES. The transcript is microphone audio from 
 Label meanings:
 - cutscene: a story cinematic the player is mostly watching and cannot control. Ignore the streamer reacting to it.
 - dialogue: in-game character conversation — a game dialogue box, character names, or clearly in-game lines on screen. Not streamer commentary, not stream/party chat logs.
-- combat: fighting, a boss, or a skill/ultimate animation the player triggered. Flashy battle camerawork is still combat, not a cutscene.
+- combat: fighting, a boss, or a skill/ultimate animation the player triggered. Flashy battle camerawork is still combat, not a cutscene. If combat UI such as WAVE, ENEMY MP, BREAK, WEAK, or damage numbers is visible, label combat even if a skill animation looks cinematic.
 - exploration: walking, traveling, looting, puzzles, looking around, even if the streamer is chatting.
 - menu: inventory, map, settings, title, loading.
 - other: tutorial or system UI (skill tooltips, control prompts like "Press F", elemental/reaction help), death/AFK, or unclear.

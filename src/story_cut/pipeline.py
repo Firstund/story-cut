@@ -11,7 +11,7 @@ from story_cut.frames import extract_frames
 from story_cut.merge import AnalyzedShot, KeptRange, apply_keep, drop_short_ranges, merge_kept
 from story_cut.export_openreel import build_openreel_edit
 from story_cut.report import write_reports
-from story_cut.scenes import Shot, detect_shots, shots_to_json
+from story_cut.scenes import SCENES_VERSION, Shot, detect_shots, shots_to_json
 from story_cut.transcribe import Transcript, empty_transcript, transcribe, transcript_from_json, transcript_to_json
 
 
@@ -72,6 +72,7 @@ def analyze(opts: AnalyzeOptions) -> AnalyzeResult:
     cached_shots = cache.read("scenes.json")
     scenes_ok = (
         isinstance(cached_shots, dict)
+        and cached_shots.get("scenes_version") == SCENES_VERSION
         and cached_shots.get("min_shot") == opts.min_shot
         and cached_shots.get("max_segment") == opts.max_segment
         and isinstance(cached_shots.get("shots"), list)
@@ -87,6 +88,7 @@ def analyze(opts: AnalyzeOptions) -> AnalyzeResult:
             duration=media.duration,
         )
         cache.write("scenes.json", {
+            "scenes_version": SCENES_VERSION,
             "min_shot": opts.min_shot,
             "max_segment": opts.max_segment,
             "shots": shots_to_json(shots),

@@ -4,6 +4,9 @@ from dataclasses import asdict, dataclass
 
 from scenedetect import ContentDetector, SceneManager, open_video
 
+# Bump when shot-splitting rules change so the scenes cache is not reused.
+SCENES_VERSION = 2
+
 
 @dataclass
 class Shot:
@@ -42,7 +45,7 @@ def detect_shots(
             spans.append((spans[-1][1], duration))
 
     merged = _merge_short(spans, min_shot)
-    capped = _cap_length(merged, max_segment)
+    capped = _cap_length(merged, max_segment, min_shot)
     return [Shot(index=i, start=s, end=e) for i, (s, e) in enumerate(capped) if e - s > 0.01]
 
 
@@ -62,15 +65,25 @@ def _merge_short(spans: list[tuple[float, float]], min_shot: float) -> list[tupl
     return out
 
 
-def _cap_length(spans: list[tuple[float, float]], max_segment: float) -> list[tuple[float, float]]:
+def _cap_length(
+    spans: list[tuple[float, float]],
+    max_segment: float,
+    min_shot: float = 0.0,
+) -> list[tuple[float, float]]:
     if max_segment <= 0:
         return spans
     out: list[tuple[float, float]] = []
     for start, end in spans:
         t = start
         while end - t > max_segment + 0.05:
-            out.append((t, t + max_segment))
-            t += max_segment
+            nxt = t + max_segment
+            remainder = end - nxt
+            # Don't leave a leftover shorter than min_shot; let the last
+            # chunk run a little past max_segment instead.
+            if min_shot > 0 and remainder < min_shot:
+                break
+            out.append((t, nxt))
+            t = nxt
         if end - t > 0.01:
             out.append((t, end))
     return out
