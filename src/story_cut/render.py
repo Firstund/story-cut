@@ -69,6 +69,15 @@ def write_srt(subs: list[dict[str, Any]], path: Path) -> Path:
     return path
 
 
+def scaled_size(size: tuple[int, int], max_short_side: int | None) -> tuple[int, int]:
+    """Shrink so the short side is at most max_short_side (720 = phone-friendly), keeping even numbers."""
+    w, h = size
+    if max_short_side and min(w, h) > max_short_side:
+        k = max_short_side / min(w, h)
+        w, h = int(round(w * k)), int(round(h * k))
+    return w - w % 2, h - h % 2
+
+
 def build_filter(cuts: list[Cut], size: tuple[int, int], fit: str, *, has_audio: bool, subtitles: str | None) -> str:
     w, h = size
     w -= w % 2
@@ -101,9 +110,13 @@ def render_edit(
     burn_subtitles: bool = False,
     encoder: str = "libx264",
     on_progress: Callable[[float], None] | None = None,
+    max_short_side: int | None = None,
 ) -> Path:
+    """Render. max_short_side=720 makes a smaller phone-friendly file (720p, lower bitrate)."""
     doc = edit if isinstance(edit, dict) else json.loads(Path(edit).read_text(encoding="utf-8"))
     cuts, subs, size, fit = cuts_from_edit(doc)
+    size = scaled_size(size, max_short_side)
+    small = bool(max_short_side)
     media = probe(video)
     out = out.expanduser().resolve()
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -118,7 +131,7 @@ def render_edit(
     script.write_text(build_filter(cuts, size, fit, has_audio=media.has_audio, subtitles=srt_name), encoding="utf-8")
     venc = [encoder]
     if encoder == "libx264":
-        venc += ["-preset", "veryfast", "-crf", "20"]
+        venc += ["-preset", "veryfast", "-crf", "26" if small else "20"]
     elif encoder in {"h264_amf", "hevc_amf"}:
         venc += ["-quality", "balanced", "-rc", "cqp", "-qp_i", "20", "-qp_p", "22"]
     args = [
@@ -128,7 +141,7 @@ def render_edit(
         "-map", "[vout]",
     ]
     if media.has_audio:
-        args += ["-map", "[ac]", "-c:a", "aac", "-b:a", "192k"]
+        args += ["-map", "[ac]", "-c:a", "aac", "-b:a", "128k" if small else "192k"]
     args += ["-c:v", *venc, "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(out)]
     try:
         proc = subprocess.Popen(
@@ -172,15 +185,42 @@ def _filter_script_flag() -> list[str]:
     return _FLAG
 
 
-def make_proxy(video: Path, out: Path, *, height: int = 540) -> Path:
-    """Light copy for phones (same length, so an edit made on it still fits the original)."""
+def make_proxy(
+    video: Path,
+    out: Path,
+    *,
+    height: int = 540,
+    on_progress: Callable[[float], None] | None = None,
+) -> Path:
+    """Light copy for phones (same length, so an edit made on it still fits the original).
+
+    540p, ~1 Mbit/s, a keyframe every 2 s so seeking on a phone stays quick, faststart so it streams.
+    """
     out.parent.mkdir(parents=True, exist_ok=True)
+    duration = 0.0
+    try:
+        duration = probe(video).duration
+    except Exception:
+        pass
     args = [
-        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", str(video),
-        "-vf", f"scale=-2:{height}", "-c:v", "libx264", "-preset", "veryfast", "-crf", "28",
-        "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart", str(out),
+        "ffmpeg", "-y", "-hide_banner", "-nostats", "-loglevel", "error", "-progress", "pipe:1",
+        "-i", str(video),
+        "-vf", f"scale=-2:{height}", "-c:v", "libx264", "-preset", "veryfast", "-crf", "30",
+        "-maxrate", "1500k", "-bufsize", "3000k", "-g", "60", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "64k", "-ac", "2", "-movflags", "+faststart", str(out),
     ]
-    proc = subprocess.run(args, capture_output=True, text=True, encoding="utf-8", errors="replace")
-    if proc.returncode != 0:
-        raise FfmpegError(f"가벼운 영상 만들기에 실패했습니다.\n{proc.stderr[-800:]}")
+    try:
+        proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
+    except FileNotFoundError as exc:
+        raise FfmpegError("ffmpeg를 찾지 못했습니다.") from exc
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        m = re.match(r"out_time_(?:us|ms)=(\d+)", line.strip())
+        if m and on_progress and duration > 0:
+            on_progress(min(0.99, int(m.group(1)) / 1_000_000 / duration))
+    err = proc.stderr.read() if proc.stderr else ""
+    if proc.wait() != 0:
+        raise FfmpegError(f"가벼운 영상 만들기에 실패했습니다.\n{err[-800:]}")
+    if on_progress:
+        on_progress(1.0)
     return out

@@ -87,8 +87,9 @@ def lan_addresses() -> list[str]:
         if ip.startswith("127.") or ip in out:
             continue
         out.append(ip)
-    # Tailscale (100.64.0.0/10) last, home Wi-Fi first.
-    return sorted(out, key=lambda ip: ip.startswith("100."))
+    # Home Wi-Fi first, then Tailscale, then a public address.
+    order = {"같은 와이파이": 0, "Tailscale": 1}
+    return sorted(out, key=lambda ip: order.get(ip_kind(ip), 2))
 
 
 def resolve_cache_dir(opts: ServeOptions, work: Path) -> Path:
@@ -99,6 +100,19 @@ def resolve_cache_dir(opts: ServeOptions, work: Path) -> Path:
     if here.is_dir():
         return here.resolve()
     return work / ".story-cut-cache"
+
+
+def ip_kind(ip: str) -> str:
+    import ipaddress
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return "?"
+    if addr in ipaddress.ip_network("100.64.0.0/10"):
+        return "Tailscale"
+    if addr.is_private:
+        return "같은 와이파이"
+    return "공인 IP"
 
 
 def encode_id(rel: str) -> str:
@@ -339,6 +353,11 @@ class JobManager:
                 job.mode = job.mode or side.get("mode")
             except (OSError, ValueError):
                 pass
+            # Make the light phone copy right away so "OpenReel (폰용)" opens without waiting.
+            try:
+                self.start_proxy(job)
+            except Exception:
+                pass
         else:
             job.status = "error"
             errors = [l for l in job.log if l.startswith("오류")]
@@ -358,20 +377,24 @@ class JobManager:
         data["openreel_edited"] = (self.job_dir(job.id) / "edit.original.json").is_file()
         return data
 
-    def start_render(self, job: Job, burn_subs: bool, encoder: str) -> None:
+    def start_render(self, job: Job, burn_subs: bool, encoder: str, small: bool = False) -> None:
         if job.render.get("status") == "running":
             return
-        job.render = {"status": "running", "progress": 0.0, "burn_subs": burn_subs}
+        job.render = {"status": "running", "progress": 0.0, "burn_subs": burn_subs, "small": small, "started": time.time()}
         self._save(job)
 
         def work() -> None:
             from story_cut.render import render_edit
             d = self.job_dir(job.id)
-            out = d / f"{Path(job.video_name).stem}-{job.mode or 'edit'}.mp4"
+            suffix = "-small" if small else ""
+            out = d / f"{Path(job.video_name).stem}-{job.mode or 'edit'}{suffix}.mp4"
             try:
                 def tick(p: float) -> None:
                     job.render["progress"] = round(p, 3)
-                render_edit(d / "edit.json", Path(job.video), out, burn_subtitles=burn_subs, encoder=encoder, on_progress=tick)
+                render_edit(
+                    d / "edit.json", Path(job.video), out, burn_subtitles=burn_subs, encoder=encoder,
+                    on_progress=tick, max_short_side=720 if small else None,
+                )
                 job.render.update(status="done", file=out.name, progress=1.0, size=out.stat().st_size)
             except Exception as exc:
                 job.render.update(status="error", error=str(exc)[-800:])
@@ -391,14 +414,16 @@ class JobManager:
             return
         if job.proxy.get("status") == "running":
             return
-        job.proxy = {"status": "running"}
+        job.proxy = {"status": "running", "progress": 0.0}
         self._save(job)
 
         def work() -> None:
             from story_cut.render import make_proxy
             tmp = path.with_suffix(".part.mp4")
             try:
-                make_proxy(Path(job.video), tmp)
+                def tick(p: float) -> None:
+                    job.proxy["progress"] = round(p, 3)
+                make_proxy(Path(job.video), tmp, on_progress=tick)
                 tmp.replace(path)
                 job.proxy = {"status": "done", "size": path.stat().st_size}
             except Exception as exc:
@@ -710,16 +735,20 @@ def create_app(opts: ServeOptions):
             body = await request.json()
         except Exception:
             pass
-        manager.start_render(job, bool(body.get("burn_subs")), str(body.get("encoder") or "libx264"))
+        manager.start_render(job, bool(body.get("burn_subs")), str(body.get("encoder") or "libx264"), bool(body.get("small")))
         return job.public()
 
     @app.get("/api/jobs/{job_id}/output")
-    async def job_output(job_id: str):
+    async def job_output(job_id: str, inline: int = 0):
+        """Finished MP4. Streams from disk with Range support; attachment by default so phones save it."""
         job = get_job(job_id)
         name = job.render.get("file")
-        if not name:
+        if not name or job.render.get("status") != "done":
             raise HTTPException(404, "아직 영상을 만들지 않았습니다.")
-        return FileResponse(job_file(job, name), media_type="video/mp4", filename=name)
+        return FileResponse(
+            job_file(job, name), media_type="video/mp4", filename=name,
+            content_disposition_type="inline" if inline else "attachment",
+        )
 
     @app.post("/api/jobs/{job_id}/proxy")
     async def job_proxy(job_id: str):
@@ -750,14 +779,15 @@ def print_banner(opts: ServeOptions, token: str | None, app_work: Path) -> None:
     reel = _port_open(5173)
     if reel and token:
         for ip in ips:
-            kind = "Tailscale" if ip.startswith("100.") else "같은 와이파이"
-            print(f"  휴대폰({kind}, 추천): https://{ip}:5173/storycut/{suffix}")
+            print(f"  휴대폰({ip_kind(ip)}, 추천): https://{ip}:5173/storycut/{suffix}")
         qr_url = f"https://{ips[0]}:5173/storycut/{suffix}" if ips else None
     if exposed:
         for ip in ips:
-            kind = "Tailscale" if ip.startswith("100.") else "같은 와이파이"
-            print(f"  휴대폰({kind}): http://{ip}:{opts.port}/{suffix}")
+            print(f"  휴대폰({ip_kind(ip)}): http://{ip}:{opts.port}/{suffix}")
         qr_url = qr_url or (f"http://{ips[0]}:{opts.port}/{suffix}" if ips else None)
+    if any(ip_kind(ip) == "공인 IP" for ip in ips) and (reel or exposed):
+        print("  주의: 이 PC는 공인 IP를 직접 쓰고 있어 인터넷에서도 접속될 수 있습니다. 비밀번호가 지켜 주지만,")
+        print("        주소(토큰 포함)를 남에게 보내지 말고, 집 밖에서는 Tailscale 주소를 쓰는 것을 권장합니다.")
     if token:
         print(f"  접속 비밀번호:  {token}   (바꾸려면 --token 새비밀번호)")
     else:

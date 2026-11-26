@@ -95,3 +95,44 @@ def test_token_query_sets_cookie_and_redirects(client):
     c, _ = client
     r = c.get("/?token=secret123", follow_redirects=False)
     assert r.status_code == 303 and "sc_token" in r.headers.get("set-cookie", "")
+
+
+def test_scaled_size_for_phone_render():
+    from story_cut.render import scaled_size
+    assert scaled_size((1920, 1080), 720) == (1280, 720)
+    assert scaled_size((1080, 1920), 720) == (720, 1280)
+    assert scaled_size((1280, 720), 720) == (1280, 720)  # already small
+    assert scaled_size((1921, 1081), None) == (1920, 1080)
+
+
+def test_ip_kind_labels():
+    from story_cut.server import ip_kind
+    assert ip_kind("100.101.102.103") == "Tailscale"
+    assert ip_kind("192.168.0.12") == "같은 와이파이"
+    assert ip_kind("59.9.73.108") == "공인 IP"
+
+
+def test_output_download_headers_and_range(client):
+    import time
+    from story_cut.server import Job
+    c, _ = client
+    h = {"Authorization": "Bearer secret123"}
+    m = c.app.state.manager
+    job = Job(id="20260101-000000-abcd", video="x", video_name="방송.mp4", mode="story", prompt=None,
+              max_total=None, created=time.time(), status="done")
+    m.jobs[job.id] = job
+    assert c.get(f"/api/jobs/{job.id}/output", headers=h).status_code == 404  # not rendered yet
+    d = m.job_dir(job.id)
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "방송-edit-small.mp4").write_bytes(bytes(range(256)) * 40)
+    job.render = {"status": "done", "file": "방송-edit-small.mp4", "size": 10240}
+    r = c.get(f"/api/jobs/{job.id}/output", headers=h)
+    assert r.status_code == 200 and r.headers["content-type"] == "video/mp4"
+    assert r.headers["content-disposition"].startswith("attachment;")
+    assert "%EB%B0%A9%EC%86%A1" in r.headers["content-disposition"]  # Korean name survives
+    assert r.headers["accept-ranges"] == "bytes"
+    r = c.get(f"/api/jobs/{job.id}/output?inline=1", headers=h)
+    assert r.headers["content-disposition"].startswith("inline;")
+    r = c.get(f"/api/jobs/{job.id}/output", headers={**h, "Range": "bytes=256-511"})
+    assert r.status_code == 206 and r.content == bytes(range(256))
+    assert c.get(f"/api/jobs/{job.id}/output").status_code == 401

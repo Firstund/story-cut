@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "story-cut"
-version = "0.2.0"
+version = "0.2.1"
 description = "Local-first game/stream video auto-edit (story, highlight, combat, silence cut, shorts) that writes an OpenReel edit draft, with a phone-friendly web UI."
 readme = "README.md"
 license = "MIT"
