@@ -15,7 +15,10 @@ LABEL_COLORS = {
     "exploration": "#34D399",
     "menu": "#A78BFA",
     "other": "#94A3B8",
+    "speech": "#22D3EE",
 }
+
+ASPECTS = {"9:16": (1080, 1920), "1:1": (1080, 1080), "16:9": (1920, 1080)}
 
 DEFAULT_TRANSFORM = {
     "position": {"x": 0.5, "y": 0.5},
@@ -37,11 +40,17 @@ def build_openreel_edit(
     transcript: Transcript,
     *,
     project_name: str | None = None,
+    aspect: str = "source",
+    mode: str = "story",
 ) -> dict:
+    """Build an openreel-edit v3 document. aspect "9:16" makes a vertical project with a centre crop."""
     media_id = make_id("media")
     track_id = make_id("track")
     project_id = make_id("project")
 
+    transform = dict(DEFAULT_TRANSFORM)
+    if aspect in ASPECTS and aspect != "16:9":
+        transform["fitMode"] = "cover"
     clips = []
     markers = []
     cursor = 0.0
@@ -66,7 +75,7 @@ def build_openreel_edit(
             "outPoint": out_point,
             "effects": [],
             "audioEffects": [],
-            "transform": DEFAULT_TRANSFORM,
+            "transform": transform,
             "volume": 1,
             "keyframes": [],
         })
@@ -96,8 +105,9 @@ def build_openreel_edit(
         })
 
     timeline_duration = _round(cursor)
-    width = max(16, min(8192, media.width or 1920))
-    height = max(16, min(8192, media.height or 1080))
+    src_width = max(16, min(8192, media.width or 1920))
+    src_height = max(16, min(8192, media.height or 1080))
+    width, height = ASPECTS.get(aspect, (src_width, src_height))
     frame_rate = media.frame_rate if 1 <= media.frame_rate <= 120 else 30
     sample_rate = media.sample_rate if 8000 <= media.sample_rate <= 192000 else 48000
     channels = media.channels if 1 <= media.channels <= 8 else (2 if media.has_audio else 2)
@@ -107,7 +117,7 @@ def build_openreel_edit(
         "version": 3,
         "project": {
             "id": project_id,
-            "name": project_name or f"{media.path.stem} story cut",
+            "name": project_name or f"{media.path.stem} {mode} cut",
             "settings": {
                 "width": width,
                 "height": height,
@@ -121,8 +131,8 @@ def build_openreel_edit(
                 "type": "video",
                 "metadata": {
                     "duration": _round(media.duration),
-                    "width": width,
-                    "height": height,
+                    "width": src_width,
+                    "height": src_height,
                     "frameRate": frame_rate,
                     "codec": media.video_codec or "unknown",
                     "sampleRate": sample_rate,

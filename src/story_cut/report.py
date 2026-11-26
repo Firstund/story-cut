@@ -14,24 +14,28 @@ def write_reports(
     shots: list[AnalyzedShot],
     ranges: list[KeptRange],
     keep_labels: list[str],
+    mode_title: str = "스토리",
 ) -> None:
     md_path.parent.mkdir(parents=True, exist_ok=True)
     csv_path.parent.mkdir(parents=True, exist_ok=True)
 
     kept_dur = sum(r.duration for r in ranges)
-    total = shots[-1].shot.end if shots else 0.0
+    total = shots[-1].shot.end if shots else (ranges[-1].end if ranges else 0.0)
     lines = [
-        f"# {video_name} 스토리 구간 보고서",
+        f"# {video_name} {mode_title} 구간 보고서",
         "",
         f"- 원본 길이: **{total:.2f}초**",
         f"- 남긴 구간: **{kept_dur:.2f}초** ({len(ranges)}개 클립)",
         f"- 남긴 라벨: {', '.join(keep_labels)}",
         "",
-        "## 샷 목록",
-        "",
-        "| # | 시작 | 끝 | 길이 | 라벨 | 신뢰도 | 남김 | 대사 일부 | 이유 |",
-        "|---|------|----|------|------|--------|------|-----------|------|",
     ]
+    if shots:
+        lines += [
+            "## 샷 목록",
+            "",
+            "| # | 시작 | 끝 | 길이 | 라벨 | 신뢰도 | 남김 | 대사 일부 | 이유 |",
+            "|---|------|----|------|------|--------|------|-----------|------|",
+        ]
     for item in shots:
         snip = (item.transcript or "").replace("|", " ").replace("\n", " ")
         if len(snip) > 40:

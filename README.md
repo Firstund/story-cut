@@ -1,6 +1,10 @@
 # story-cut
 
-게임 플레이 영상을 보고 **스토리 구간만 남긴 편집 초안**을 만들어 줍니다. 초안은 [OpenReel](https://github.com/Firstund/openreel-video)에서 바로 가져와 다듬을 수 있는 `openreel-edit` JSON입니다.
+게임/방송 영상을 보고 **원하는 부분만 남긴 편집 초안**을 만들어 줍니다. 초안은 [OpenReel](https://github.com/Firstund/openreel-video)에서 바로 가져와 다듬을 수 있는 `openreel-edit` JSON입니다.
+
+- **편집 모드 5가지**: 스토리(기본), 하이라이트, 전투만, 무음 컷(토크 압축), 쇼츠(세로 60초). 말로 적어도 됩니다. 예: `"보스전 하이라이트 3분"`
+- **휴대폰에서 사용**: 무거운 분석은 PC가 하고, 폰 브라우저로 영상 고르기 → 모드/요청 → 진행 상황 → 결과 확인·다듬기 → MP4 받기까지 할 수 있습니다. ([휴대폰에서 쓰기](#휴대폰에서-쓰기))
+- **PC에서 바로 MP4**: 초안대로 컷/자막/세로 자르기를 ffmpeg로 바로 만듭니다.
 
 이 프로그램은 **내 PC에서** 돌아갑니다. 영상을 클라우드에 올리지 않습니다. 구간이 컷신인지, 대사인지, 전투인지를 판단할 때는 기본적으로 [LM Studio](https://lmstudio.ai)에 받아 둔 **Qwen3-VL 8B** 같은 로컬 비전 모델을 씁니다. (NVIDIA CUDA가 없어도 됩니다. AMD 그래픽카드에서도 LM Studio로 모델을 돌릴 수 있습니다.)
 
@@ -83,6 +87,143 @@ story-cut analyze "C:\Videos\gameplay.mp4" --out edit.json --backend lmstudio --
 
 중단했다가 이어서 하려면, 같은 명령만 다시 실행하면 됩니다. 장면 나누기와 받아쓰기는 캐시(기본: 결과 파일 옆 `.story-cut-cache`)에서 불러옵니다. 분류 규칙이 바뀐 버전으로 다시 돌리면 구간 분류만 처음부터 다시 합니다.
 
+## 이미 설치했다면: 업데이트 방법
+
+PowerShell을 열고 아래를 한 줄씩 입력합니다.
+
+```powershell
+cd D:\_ForBroadcast\StroyCut\story-cut
+git pull
+.\.venv\Scripts\activate
+python -m pip install -e .
+story-cut --version
+```
+
+`story-cut 0.2.0` 이상이 나오면 됩니다. (새 기능에 필요한 웹 서버 부품도 이때 같이 설치됩니다.)
+
+## 편집 모드
+
+| 모드 | 이름 | 하는 일 | AI 모델 |
+|------|------|---------|---------|
+| `story` | 스토리 (기본) | 컷신과 게임 속 대사만 남깁니다. 예전과 똑같이 동작합니다. | 필요 |
+| `highlight` | 하이라이트 | 전투 + 소리가 크게 터진 순간(리액션, 함성)을 남깁니다. | 필요 |
+| `combat` | 전투만 | 전투 장면을 모두 남깁니다. | 필요 |
+| `talk` | 무음 컷 | 말소리가 없는 구간을 잘라 냅니다. 토크/잡담/튜토리얼 방송용. | **불필요** (빠름) |
+| `shorts` | 쇼츠 | 가장 볼만한 순간만 골라 **9:16 세로, 58초 이내**로 만듭니다. | 필요 |
+
+```powershell
+story-cut analyze ..\test20.mp4 --out highlight.json --mode highlight --backend lmstudio --model qwen/qwen3-vl-8b --language ko
+story-cut analyze ..\test20.mp4 --out shorts.json --mode shorts --backend lmstudio --model qwen/qwen3-vl-8b --language ko
+story-cut analyze ..\test20.mp4 --out talk.json --mode talk --language ko
+story-cut modes
+```
+
+**말로 요청하기**: `--prompt`에 원하는 편집을 적으면, LM Studio의 모델이 읽고 모드·남길 장면·길이를 정합니다. (모델이 꺼져 있으면 단어로 추측합니다.)
+
+```powershell
+story-cut analyze ..\test20.mp4 --out edit.json --prompt "보스전 위주로 3분 하이라이트 만들어줘" --backend lmstudio --model qwen/qwen3-vl-8b --language ko
+story-cut analyze ..\test20.mp4 --out edit.json --prompt "스토리랑 전투 같이, 10분으로" --backend lmstudio --model qwen/qwen3-vl-8b --language ko
+```
+
+- `--mode`와 `--prompt`를 같이 주면 모드는 `--mode`를 따르고, 길이·추가 장면은 요청에서 가져옵니다.
+- **AI 분류 결과는 모드끼리 공유됩니다.** 같은 영상을 스토리로 한 번 돌렸다면, 하이라이트나 쇼츠로 다시 돌릴 때는 AI 분류를 다시 하지 않아 금방 끝납니다.
+- 결과 길이를 정하고 싶으면 `--max-total 600`(초)처럼 줍니다. 넘치면 점수가 높은 구간만 남깁니다.
+
+## PC에서 바로 MP4 만들기
+
+초안을 OpenReel에서 열지 않고 바로 영상으로 만듭니다. (컷, 자막, 세로 자르기만 반영. OpenReel에서 넣은 효과/전환은 OpenReel의 Export를 쓰세요.)
+
+```powershell
+story-cut render shorts.json ..\test20.mp4 --out shorts.mp4 --burn-subs
+```
+
+`--burn-subs`는 자막을 영상에 새겨 넣습니다. 자막 파일(`.srt`)은 항상 옆에 따로 저장됩니다. AMD 그래픽카드로 빠르게 만들려면 `--encoder h264_amf`를 붙여 보세요.
+
+## 휴대폰에서 쓰기
+
+무거운 일(장면 나누기, 받아쓰기, AI 분류, 영상 만들기)은 **집 PC**가 하고, 휴대폰은 브라우저로 PC에 접속해 조작만 합니다. 앱 설치는 필요 없습니다.
+
+### 준비 (PC에서 한 번)
+
+1. 위의 **업데이트 방법**대로 story-cut을 최신으로 만듭니다.
+2. OpenReel도 최신으로 받습니다. ([OpenReel 쪽 안내](https://github.com/Firstund/openreel-video#휴대폰에서-쓰기-story-cut-연동))
+
+```powershell
+cd D:\_ForBroadcast\openreel-video
+git pull
+pnpm install
+```
+
+### 켜기 (쓸 때마다, PowerShell 창 2개)
+
+**창 1 — OpenReel (휴대폰 접속용)**
+
+```powershell
+cd D:\_ForBroadcast\openreel-video
+pnpm dev:remote
+```
+
+**창 2 — story-cut 웹 서버**
+
+```powershell
+cd D:\_ForBroadcast\StroyCut\story-cut
+.\.venv\Scripts\activate
+story-cut serve --videos D:\_ForBroadcast\StroyCut
+```
+
+- `--videos`에는 영상이 있는 폴더를 넣습니다. 하위 폴더 3단계까지 영상 목록에 나옵니다.
+- LM Studio도 켜 두세요 (Developer 탭 서버 Running, 모델 `qwen/qwen3-vl-8b` 로드).
+- 처음 켜면 Windows 방화벽 창이 뜰 수 있습니다. **개인 네트워크**에 체크하고 **허용**을 누르세요.
+- 두 창 모두 켜 둔 채로 써야 합니다. 끌 때는 창을 X로 닫으면 됩니다.
+
+### 같은 와이파이에서 폰으로 열기
+
+1. 창 1(OpenReel)에 이런 줄이 나옵니다: `같은 와이파이  https://192.168.0.12:5173/storycut/?token=AbCdEf...`
+   창 2(story-cut)에도 같은 주소와 QR 코드가 나옵니다.
+2. 폰 카메라로 QR을 찍거나, 그 주소를 폰 크롬/사파리에 그대로 입력합니다.
+3. **"연결이 비공개로 설정되어 있지 않습니다"** 경고가 나오면 **고급 → 192.168...(으)로 이동(안전하지 않음)** 을 누릅니다. (PC가 스스로 만든 인증서라서 나오는 경고입니다. 처음 한 번만.)
+4. story-cut 화면이 뜹니다. 주소에 비밀번호(token)가 들어 있어 자동으로 로그인됩니다. 비밀번호를 물으면 PC 창의 **접속 비밀번호**를 넣으세요.
+5. 홈 화면에 추가해 두면 앱처럼 쓸 수 있습니다.
+
+### 집 밖에서 열기 (Tailscale, 무료)
+
+[Tailscale](https://tailscale.com)은 내 기기끼리만 연결되는 비공개 네트워크입니다. 공유기 설정(포트 열기)이 필요 없고, 인터넷에 PC를 공개하지 않습니다.
+
+1. PC: <https://tailscale.com/download> 에서 Windows용을 설치하고 구글 계정 등으로 로그인합니다.
+2. 폰: 앱스토어/플레이스토어에서 **Tailscale** 앱을 설치하고 **같은 계정**으로 로그인한 뒤 연결(Connect)을 켭니다.
+3. PC에서 위의 창 1, 창 2를 켜면 `Tailscale  https://100.x.y.z:5173/storycut/?token=...` 줄이 나옵니다. (안 나오면 PC 작업표시줄 Tailscale 아이콘에서 내 PC의 100.으로 시작하는 주소를 확인하세요.)
+4. 폰에서 그 주소를 엽니다. 경고 화면은 같은 방법으로 넘어갑니다.
+5. 다 쓰면 폰의 Tailscale 연결은 꺼도 됩니다.
+
+### 폰 화면에서 하는 일
+
+1. **영상 고르기**: PC 폴더의 영상 목록에서 고르거나, **⬆ 올리기**로 폰의 영상을 PC로 보냅니다.
+2. **모드 고르기 / 요청 적기**: 스토리·하이라이트·전투만·무음 컷·쇼츠 중에서 고르거나, "말로 설명"을 누르고 요청을 적습니다.
+3. **분석 시작**: 단계별 진행 막대가 나옵니다. 폰 화면을 꺼도 PC에서 계속 돌아갑니다.
+4. **결과 확인**: 위쪽 플레이어의 **▶ 남긴 부분 이어보기**로 결과를 미리 봅니다. 각 클립은 ✅로 빼거나 넣고, **◀ 시작 / 끝 ▶** 버튼으로 0.5초씩 늘리거나 줄입니다. 다 고쳤으면 **변경 저장**.
+   - 밖에서 데이터가 아까우면 **가벼운 화질로 미리보기**를 켭니다 (PC가 540p 사본을 만듭니다).
+5. **내보내기**
+   - **PC에서 MP4 만들기** → 다 되면 **⬇ 영상 받기**로 폰에 저장. (쇼츠는 자막 넣기가 기본으로 켜져 있음)
+   - **OpenReel (폰용 가벼운 영상)** → 폰에서 OpenReel 편집기로 바로 열립니다. 더 다듬은 뒤 오른쪽 아래 **story-cut으로 보내기**를 누르고, story-cut 화면에서 **PC에서 MP4 만들기**를 누르면 원본 화질로 만들어집니다.
+   - **JSON 받기**: 초안 파일을 받습니다.
+   - **다른 모드로 다시**: AI 분류가 저장돼 있어 빨리 끝납니다.
+
+결과 파일은 PC의 `영상 폴더\story-cut-results\작업번호\`에 저장됩니다.
+
+### 비밀번호
+
+- 처음 켤 때 자동으로 만들어져 `C:\Users\내이름\.story-cut\token`에 저장됩니다. OpenReel(`pnpm dev:remote`)과 story-cut이 같은 비밀번호를 씁니다.
+- 바꾸려면 `story-cut serve --videos ... --token 새비밀번호` 로 한 번 켜면 됩니다. (OpenReel 창도 다시 켜세요.)
+- 비밀번호가 들어간 주소는 다른 사람에게 보내지 마세요.
+
+### OpenReel 없이 story-cut만 폰에서 쓰기
+
+```powershell
+story-cut serve --videos D:\_ForBroadcast\StroyCut --host 0.0.0.0
+```
+
+창에 나온 `http://192.168...:8765/?token=...` 주소로 엽니다. 결과 확인·다듬기·MP4 만들기는 다 되지만, 폰에서 OpenReel 편집기로 여는 기능은 `pnpm dev:remote`가 켜져 있어야 합니다.
+
 ## OpenReel에서 초안 열기
 
 1. OpenReel 웹 또는 데스크톱에서 새 프로젝트를 엽니다.
@@ -96,7 +237,9 @@ story-cut analyze "C:\Videos\gameplay.mp4" --out edit.json --backend lmstudio --
 story-cut fix-json edit.json edit-fixed.json
 ```
 
-OpenReel이 `metadata.sourceColor: unsupported property` 같은 오류를 내면, 초안에 색공간 같은 런타임 키가 들어 있거나(이 명령으로 제거됩니다), 원본 영상을 연결한 뒤 OpenReel이 그 키를 다시 검증하는 경우가 있습니다. 후자면 OpenReel `packages/core/src/editing/portable-project.ts`의 `portableMediaMetadata`가 `sourceColor`를 제거하도록 고친 버전이 필요합니다.
+OpenReel이 `metadata.sourceColor: unsupported property` 같은 오류를 내면 [Firstund/openreel-video](https://github.com/Firstund/openreel-video) 최신 버전으로 `git pull` 하세요. (영상 연결 뒤 생기던 이 오류는 고쳐졌습니다.)
+
+`story-cut serve`를 쓰면 이 과정이 필요 없습니다. 결과 화면의 **OpenReel에서 열기**를 누르면 초안과 영상이 자동으로 들어갑니다.
 
 ## 자주 쓰는 옵션
 
@@ -107,8 +250,13 @@ OpenReel이 `metadata.sourceColor: unsupported property` 같은 오류를 내면
 | `--backend gemini` | 선택. Google Gemini API (`GEMINI_API_KEY` 필요) |
 | `--endpoint http://localhost:1234/v1` | 로컬 서버 주소 |
 | `--model 이름` | LM Studio에 보이는 모델 이름 (예: `qwen/qwen3-vl-8b`) |
+| `--mode story` | 편집 모드: `story`, `highlight`, `combat`, `talk`, `shorts` |
+| `--prompt "요청"` | 원하는 편집을 말로 적기 |
+| `--max-total 600` | 결과 최대 길이(초) |
+| `--aspect 9:16` | 화면 비율 (`source`, `9:16`, `1:1`, `16:9`) |
+| `--silence-db -35` | 무음 컷에서 무음으로 볼 소리 크기. 배경음이 크면 `-30` |
 | `--keep cutscene,dialogue` | 남길 라벨. 전투도 남기려면 `cutscene,dialogue,combat` |
-| `--pad 0.25` | 남긴 구간 앞뒤 여유(초) |
+| `--pad 0.25` | 남긴 구간 앞뒤 여유(초). 아래 숫자 옵션은 안 주면 모드 기본값 |
 | `--min-shot 1.5` | 이보다 짧은 샷은 이웃과 합칩니다 |
 | `--min-keep 2` | 이보다 짧은 남긴 조각은 버립니다 (전투 이펙트 등) |
 | `--merge-gap 1` | 이 간격 안의 남긴 구간은 하나로 합칩니다 |

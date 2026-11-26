@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f17">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<title>story-cut</title>
+<style>
+:root{--bg:#0b0f17;--card:#141a26;--card2:#1b2332;--line:#263042;--fg:#e8edf5;--mut:#93a0b4;--acc:#38bdf8;--ok:#34d399;--warn:#f59e0b;--bad:#f43f5e;--r:14px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.45 system-ui,-apple-system,"Segoe UI","Malgun Gothic","Apple SD Gothic Neo",sans-serif}
+body{padding:env(safe-area-inset-top) env(safe-area-inset-right) calc(env(safe-area-inset-bottom) + 90px) env(safe-area-inset-left)}
+header{position:sticky;top:0;z-index:20;background:rgba(11,15,23,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;padding:10px 14px}
+header h1{font-size:18px;margin:0;flex:1;display:flex;gap:8px;align-items:center}
+header img{width:26px;height:26px}
+main{max-width:860px;margin:0 auto;padding:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px;margin:0 0 12px}
+.card h2{font-size:16px;margin:0 0 10px}
+.mut{color:var(--mut);font-size:14px}
+.small{font-size:13px}
+button,.btn{appearance:none;border:1px solid var(--line);background:var(--card2);color:var(--fg);border-radius:12px;min-height:46px;padding:10px 14px;font:inherit;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;touch-action:manipulation}
+button:active,.btn:active{transform:scale(.98)}
+button:disabled{opacity:.45}
+.primary{background:var(--acc);border-color:var(--acc);color:#04111c}
+.danger{color:var(--bad)}
+.ghost{background:transparent}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.grow{flex:1}
+.full{width:100%}
+input,textarea,select{width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit;font-size:16px}
+textarea{min-height:84px;resize:vertical}
+.modes{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.mode{text-align:left;display:block;min-height:76px;font-weight:500}
+.mode b{display:block;font-size:15px}
+.mode span{font-size:12.5px;color:var(--mut)}
+.mode.on{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc) inset}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.chip{min-height:36px;padding:6px 12px;border-radius:999px;font-weight:500;font-size:14px;white-space:nowrap}
+.list{display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow:auto;-webkit-overflow-scrolling:touch}
+.item{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card2);min-height:54px;cursor:pointer;text-align:left;width:100%;font-weight:500}
+.item.on{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc) inset}
+.item .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar{height:8px;background:var(--bg);border-radius:99px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--acc);width:0;transition:width .4s}
+.status{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--line)}
+.s-done{color:var(--ok)} .s-error{color:var(--bad)} .s-running{color:var(--acc)} .s-queued,.s-canceled{color:var(--mut)}
+.player{position:sticky;top:52px;z-index:10;background:#000;border-radius:var(--r);overflow:hidden;margin-bottom:10px}
+.player video{width:100%;display:block;max-height:42vh;background:#000}
+.player .ctl{display:flex;gap:6px;padding:6px;background:#0008}
+.clip{border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--card2);margin-bottom:8px}
+.clip.off{opacity:.45}
+.clip.cur{border-color:var(--warn)}
+.clip .top{display:flex;gap:8px;align-items:center}
+.clip .lab{font-size:12px;padding:2px 8px;border-radius:99px;background:var(--bg)}
+.nudge{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
+.nudge button{min-height:42px;padding:4px;font-size:14px}
+.tog{width:46px;min-width:46px;padding:0;font-size:20px}
+.sticky{position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(11,15,23,.96);border-top:1px solid var(--line);padding:10px 12px calc(10px + env(safe-area-inset-bottom));display:flex;gap:8px;overflow-x:auto}
+.sticky button,.sticky .btn{flex:1 0 auto}
+pre{white-space:pre-wrap;word-break:break-all;font-size:12px;background:var(--bg);border-radius:10px;padding:10px;max-height:240px;overflow:auto}
+details summary{cursor:pointer;min-height:40px;display:flex;align-items:center}
+.hide{display:none!important}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom));background:#000d;border:1px solid var(--line);padding:10px 16px;border-radius:12px;z-index:50;max-width:90vw}
+@media (min-width:900px){.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}.player video{max-height:50vh}}
+</style>
+</head>
+<body>
+<header><h1><img src="icon.svg" alt="">story-cut</h1><button id="homeBtn" class="ghost hide" onclick="go('#/')">← 목록</button></header>
+<main id="app"><p class="mut">불러오는 중...</p></main>
+<div id="sticky" class="sticky hide"></div>
+<script>
+"use strict";
+const BASE = location.pathname.replace(/[^/]*$/, "");
+const $ = (s, el=document) => el.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt = (t) => { t = Math.max(0, +t||0); const h=Math.floor(t/3600), m=Math.floor(t%3600/60), s=(t%60); return (h? h+":"+String(m).padStart(2,"0") : m) + ":" + s.toFixed(1).padStart(4,"0"); };
+const size = (b) => b > 1e9 ? (b/1e9).toFixed(2)+" GB" : (b/1e6).toFixed(0)+" MB";
+const LABELS = {cutscene:"컷신", dialogue:"대사", combat:"전투", exploration:"탐험", menu:"메뉴", other:"기타", speech:"말소리", manual:"직접"};
+const label = (l) => String(l||"").split("+").map(x => LABELS[x] || x).join("+");
+const STATUS = {queued:"대기", running:"분석 중", done:"완료", error:"오류", canceled:"취소"};
+const STEPS = ["", "영상 정보", "장면 나누기", "받아쓰기", "AI 분류", "구간 고르기", "저장"];
+let INFO = null, timer = null, state = {};
+
+async function api(path, opts={}) {
+  const res = await fetch(BASE + path, {credentials:"same-origin", ...opts, headers: {"Content-Type":"application/json", ...(opts.headers||{})}});
+  if (res.status === 401) { showLogin(); throw new Error("비밀번호가 필요합니다."); }
+  if (!res.ok) { let m = res.statusText; try { m = (await res.json()).detail || m; } catch {} throw new Error(m); }
+  const ct = res.headers.get("content-type") || "";
+  return ct.includes("json") ? res.json() : res.text();
+}
+function toast(msg, ms=2600) { const t = document.createElement("div"); t.className="toast"; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(), ms); }
+function sticky(html) { const s=$("#sticky"); s.innerHTML = html||""; s.classList.toggle("hide", !html); }
+function go(h) { location.hash = h; }
+
+function showLogin() {
+  clearInterval(timer); sticky("");
+  $("#app").innerHTML = `<div class="card"><h2>비밀번호</h2><p class="mut">PC의 story-cut 창에 보이는 <b>접속 비밀번호</b>를 넣으세요. (QR로 열면 자동으로 들어갑니다)</p>
+  <form id="lf" class="row"><input id="pw" class="grow" autocomplete="current-password" type="password" placeholder="비밀번호"><button class="primary">들어가기</button></form></div>`;
+  $("#lf").onsubmit = async (e) => { e.preventDefault(); try { await api("api/login", {method:"POST", body: JSON.stringify({token: $("#pw").value})}); INFO=null; route(); } catch (err) { toast(err.message); } };
+}
+
+async function route() {
+  clearInterval(timer);
+  try { if (!INFO) INFO = await api("api/info"); } catch (e) { if (!String(e.message).includes("비밀번호")) $("#app").innerHTML = `<div class="card s-error">${esc(e.message)}</div>`; return; }
+  const m = location.hash.match(/^#\/job\/([\w-]+)/);
+  $("#homeBtn").classList.toggle("hide", !m);
+  if (m) return showJob(m[1]);
+  return showHome();
+}
+window.addEventListener("hashchange", route);
+
+/* ---------------- home ---------------- */
+async function showHome() {
+  sticky("");
+  state = {mode: state.mode || "story", video: state.video || null, prompt: state.prompt || ""};
+  const modes = INFO.modes.map(m => `<button class="mode ${m.name===state.mode?"on":""}" data-mode="${m.name}"><b>${esc(m.title)}</b><span>${esc(m.description)}</span></button>`).join("");
+  $("#app").innerHTML = `
+  <div class="two">
+  <section class="card"><h2>1. 영상 고르기</h2>
+    <div class="row" style="margin-bottom:8px"><input id="q" class="grow" placeholder="이름으로 찾기" style="min-width:0"><label class="btn" for="up">⬆ 올리기</label><input id="up" type="file" accept="video/*" class="hide"></div>
+    <div id="upbar" class="bar hide" style="margin-bottom:8px"><i></i></div>
+    <div id="vids" class="list"><p class="mut">영상 목록을 읽는 중...</p></div>
+    <p class="mut small">PC 폴더: ${esc(INFO.videos_dir)}</p>
+  </section>
+  <section class="card"><h2>2. 어떻게 편집할까요?</h2>
+    <div class="modes">${modes}<button class="mode ${state.mode===""?"on":""}" data-mode=""><b>말로 설명</b><span>아래에 적은 요청을 AI가 읽고 모드를 고릅니다.</span></button></div>
+    <p class="mut small" style="margin:12px 0 6px">요청 (선택) — 모드를 골랐어도 길이나 추가 장면을 적을 수 있어요</p>
+    <textarea id="prompt" placeholder="예: 이 게임 영상을 스토리 위주로 편집해줘">${esc(state.prompt)}</textarea>
+    <div class="chips" style="margin-top:6px">${["스토리 위주로 편집해줘","보스전 하이라이트 3분","쇼츠로 만들어줘","말 없는 부분 잘라줘","스토리랑 전투 같이 10분으로"].map(t=>`<button class="chip" data-ex="${esc(t)}">${esc(t)}</button>`).join("")}</div>
+    <details style="margin-top:8px"><summary class="mut">길이 제한</summary><div class="row"><input id="maxt" type="number" inputmode="numeric" min="5" placeholder="최대 몇 초 (비우면 모드 기본)" class="grow"></div></details>
+  </section>
+  </div>
+  <button id="start" class="primary full" style="min-height:54px;font-size:17px;margin-bottom:12px">분석 시작</button>
+  <section class="card"><h2>최근 작업</h2><div id="jobs" class="mut">불러오는 중...</div></section>
+  <p class="mut small">AI: ${esc(INFO.backend)} · ${esc(INFO.model)} · v${esc(INFO.version)}</p>`;
+  document.querySelectorAll(".mode").forEach(b => b.onclick = () => { state.mode = b.dataset.mode; document.querySelectorAll(".mode").forEach(x => x.classList.toggle("on", x===b)); });
+  document.querySelectorAll("[data-ex]").forEach(b => b.onclick = () => { $("#prompt").value = b.dataset.ex; state.prompt = b.dataset.ex; state.mode = ""; document.querySelectorAll(".mode").forEach(x => x.classList.toggle("on", x.dataset.mode==="")); });
+  $("#prompt").oninput = (e) => state.prompt = e.target.value;
+  $("#up").onchange = (e) => e.target.files[0] && upload(e.target.files[0]);
+  $("#start").onclick = startJob;
+  loadVideos(); loadJobs();
+  timer = setInterval(loadJobs, 4000);
+}
+
+async function loadVideos() {
+  try {
+    const data = await api("api/videos");
+    state.videos = data.videos;
+    renderVideos();
+    $("#q").oninput = renderVideos;
+  } catch (e) { $("#vids").innerHTML = `<p class="s-error">${esc(e.message)}</p>`; }
+}
+function renderVideos() {
+  const q = ($("#q")?.value || "").toLowerCase();
+  const vids = (state.videos||[]).filter(v => v.path.toLowerCase().includes(q));
+  $("#vids").innerHTML = vids.length ? vids.map(v => `<button class="item ${v.id===state.video?"on":""}" data-v="${v.id}"><span>🎬</span><span class="t">${esc(v.path)}</span><span class="mut small">${size(v.size)}</span></button>`).join("")
+    : `<p class="mut">영상이 없습니다. PC에서 <b>--videos 폴더</b>를 바꾸거나 위의 ⬆ 올리기를 쓰세요.</p>`;
+  document.querySelectorAll("[data-v]").forEach(b => b.onclick = () => { state.video = b.dataset.v; renderVideos(); });
+}
+function upload(file) {
+  const bar = $("#upbar"); bar.classList.remove("hide");
+  const xhr = new XMLHttpRequest();
+  xhr.open("POST", BASE + "api/upload?name=" + encodeURIComponent(file.name));
+  xhr.upload.onprogress = (e) => { if (e.lengthComputable) $("i", bar).style.width = (e.loaded/e.total*100)+"%"; };
+  xhr.onload = () => { bar.classList.add("hide"); if (xhr.status === 200) { const v = JSON.parse(xhr.responseText); state.video = v.id; toast("올렸습니다: " + v.name); loadVideos(); } else toast("올리기 실패: " + xhr.status); };
+  xhr.onerror = () => { bar.classList.add("hide"); toast("올리기 실패"); };
+  xhr.send(file);
+}
+async function startJob() {
+  if (!state.video) return toast("먼저 영상을 고르세요.");
+  const prompt = ($("#prompt").value || "").trim();
+  if (state.mode === "" && !prompt) return toast("요청을 적거나 모드를 고르세요.");
+  const max_total = +($("#maxt").value || 0) || null;
+  try {
+    const job = await api("api/jobs", {method:"POST", body: JSON.stringify({video: state.video, mode: state.mode, prompt, max_total})});
+    go("#/job/" + job.id);
+  } catch (e) { toast(e.message); }
+}
+async function loadJobs() {
+  const el = $("#jobs"); if (!el) return clearInterval(timer);
+  try {
+    const {jobs} = await api("api/jobs");
+    el.innerHTML = jobs.length ? jobs.map(j => {
+      const pct = progressPct(j);
+      return `<button class="item" onclick="go('#/job/${j.id}')"><span class="t"><b>${esc(j.video_name)}</b><br><span class="mut small">${esc(modeTitle(j))} · ${new Date(j.created*1000).toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}</span>${j.status==="running"?`<div class="bar" style="margin-top:6px"><i style="width:${pct}%"></i></div>`:""}</span><span class="status s-${j.status}">${STATUS[j.status]||j.status}</span></button>`;
+    }).join("") : "아직 작업이 없습니다.";
+    el.classList.remove("mut");
+  } catch {}
+}
+function modeTitle(j) { const m = INFO.modes.find(x => x.name === j.mode); return (m ? m.title : (j.prompt ? "요청: " + j.prompt.slice(0, 24) : "스토리")); }
+function progressPct(j) {
+  const p = j.progress || {}; if (j.status === "done") return 100;
+  const step = p.step || 0; let frac = 0;
+  if (p.count) frac = (p.done||0) / p.count;
+  const w = [0, 2, 8, 25, 55, 5, 5]; let acc = 0; for (let i=1;i<step;i++) acc += w[i];
+  return Math.min(99, acc + (w[step]||0) * frac);
+}
+
+/* ---------------- job ---------------- */
+async function showJob(id) {
+  state.job = null; state.clips = null; state.dirty = false;
+  $("#app").innerHTML = `<p class="mut">불러오는 중...</p>`;
+  const tick = async () => {
+    let j; try { j = await api("api/jobs/" + id); } catch (e) { $("#app").innerHTML = `<div class="card s-error">${esc(e.message)}</div>`; clearInterval(timer); return; }
+    const first = !state.job || state.job.status !== j.status;
+    state.job = j;
+    if (j.status === "done") {
+      if (first || !state.clips) { renderResult(j); }
+      else { renderRenderState(j); }
+      if (!(j.render.status === "running" || j.proxy.status === "running")) { clearInterval(timer); timer = null; }
+    } else renderRunning(j);
+  };
+  await tick();
+  timer = setInterval(tick, 1500);
+}
+function ensurePolling() { if (!timer && state.job) { const id = state.job.id; timer = setInterval(async () => { const j = await api("api/jobs/"+id); state.job = j; renderRenderState(j); if (!(j.render.status==="running"||j.proxy.status==="running")) { clearInterval(timer); timer=null; } }, 1500); } }
+
+function renderRunning(j) {
+  const p = j.progress || {}; const pct = progressPct(j);
+  const stepTxt = p.step ? `${p.step}/6 ${STEPS[p.step]||""}` + (p.count ? ` (${p.done||0}/${p.count})` : "") : "대기 중";
+  $("#app").innerHTML = `<div class="card"><h2>${esc(j.video_name)}</h2><p class="mut">${esc(modeTitle(j))}</p>
+    <p><span class="status s-${j.status}">${STATUS[j.status]||j.status}</span> ${esc(stepTxt)}</p>
+    <div class="bar"><i style="width:${pct}%"></i></div>
+    <p class="mut small">${esc(j.message)}</p>${j.error?`<p class="s-error">${esc(j.error)}</p>`:""}
+    <details ${j.status==="error"?"open":""}><summary class="mut">자세한 기록</summary><pre>${esc((j.log||[]).slice(-60).join("\n"))}</pre></details>
+    <p class="mut small">화면을 꺼도 PC에서 계속 돌아갑니다. 나중에 다시 열어 보세요.</p></div>`;
+  sticky(j.status === "running" || j.status === "queued"
+    ? `<button class="danger" onclick="cancelJob()">취소</button>`
+    : `<button onclick="rerun()">다시 실행</button><button class="danger" onclick="delJob()">삭제</button>`);
+}
+async function cancelJob() { if (confirm("분석을 멈출까요?")) { await api(`api/jobs/${state.job.id}/cancel`, {method:"POST"}); } }
+async function delJob() { if (confirm("이 작업과 결과 파일을 지울까요? (원본 영상은 그대로)")) { await api(`api/jobs/${state.job.id}/delete`, {method:"POST"}); go("#/"); } }
+async function rerun(body={}) { const j = await api(`api/jobs/${state.job.id}/rerun`, {method:"POST", body: JSON.stringify(body)}); go("#/job/" + j.id); }
+
+function renderResult(j) {
+  const r = j.result || {ranges:[]};
+  state.clips = r.ranges.map(x => ({...x, keep: true}));
+  state.useProxy = j.proxy.status === "done" && state.useProxy !== false;
+  const plan = r.plan ? `<p class="mut small">요청 해석: ${esc(r.plan.reason)}</p>` : "";
+  $("#app").innerHTML = `
+  <div class="player"><video id="vid" playsinline controls preload="metadata"></video>
+    <div class="ctl"><button id="playAll" class="grow">▶ 남긴 부분 이어보기</button><button id="stopBtn">■</button></div></div>
+  <div class="card"><h2>${esc(j.video_name)}</h2>
+    <p class="mut">${esc(r.mode_title||modeTitle(j))} · 화면 ${esc(r.aspect)} · <span id="sum"></span></p>${plan}
+    ${r.openreel_edited?`<p class="small" style="color:var(--warn)">OpenReel에서 고친 타임라인이 저장돼 있습니다. 아래 목록을 저장하면 그 내용을 덮어씁니다.</p>`:""}
+    <div class="row small"><label class="row"><input type="checkbox" id="lite" style="width:22px;height:22px" ${state.useProxy?"checked":""}> 가벼운 화질로 미리보기</label><span id="proxyState" class="mut"></span></div>
+  </div>
+  <div id="clips"></div>
+  <div class="card"><h2>내보내기</h2>
+    <div id="renderState" class="mut small" style="margin-bottom:8px"></div>
+    <label class="row small" style="margin-bottom:8px"><input type="checkbox" id="burn" style="width:22px;height:22px" ${r.aspect==="9:16"?"checked":""}> 자막을 영상에 넣기</label>
+    <div class="row"><button class="primary grow" onclick="render()">PC에서 MP4 만들기</button><a class="btn grow" href="${BASE}api/jobs/${j.id}/edit.json?download=1">JSON 받기</a></div>
+    <div class="row" style="margin-top:8px"><button class="grow" onclick="openReel(false)">OpenReel에서 열기</button><button class="grow" onclick="openReel(true)">OpenReel (폰용 가벼운 영상)</button></div>
+    <p class="mut small">OpenReel은 영상 파일을 브라우저로 받아서 엽니다. 폰에서는 '가벼운 영상'을 쓰세요. 최종 고화질은 'PC에서 MP4 만들기'가 빠릅니다.</p>
+    <div class="row" style="margin-top:8px"><a class="btn grow ghost" href="${BASE}api/jobs/${j.id}/report.md" target="_blank">보고서 보기</a><button class="ghost grow" onclick="rerunAsk()">다른 모드로 다시</button><button class="ghost danger" onclick="delJob()">삭제</button></div>
+  </div>`;
+  $("#lite").onchange = (e) => { state.useProxy = e.target.checked; if (state.useProxy && state.job.proxy.status !== "done") { makeProxy(); } setSource(); };
+  $("#playAll").onclick = () => playFrom(0, true);
+  $("#stopBtn").onclick = () => { state.playing = null; $("#vid").pause(); };
+  const v = $("#vid");
+  v.addEventListener("timeupdate", onTime);
+  setSource(); renderClips(); renderRenderState(j);
+  sticky(`<button id="saveBtn" class="primary" onclick="saveClips()" disabled>변경 저장</button><button onclick="playFrom(0,true)">▶ 이어보기</button><button onclick="render()">MP4</button>`);
+}
+function setSource() {
+  const v = $("#vid"); if (!v) return;
+  const lite = state.useProxy && state.job.proxy.status === "done";
+  const src = `${BASE}api/jobs/${state.job.id}/media${lite?"?proxy=1":""}`;
+  if (v.dataset.src !== src) { const t = v.currentTime || 0; v.dataset.src = src; v.src = src; if (t) v.currentTime = t; }
+}
+function renderClips() {
+  const list = state.clips || [];
+  const kept = list.filter(c => c.keep);
+  const total = kept.reduce((a, c) => a + (c.end - c.start), 0);
+  $("#sum").textContent = `클립 ${kept.length}개 · ${fmt(total)}`;
+  let out = 0;
+  $("#clips").innerHTML = list.length ? list.map((c, i) => {
+    const html = `<div class="clip ${c.keep?"":"off"} ${state.playing&&state.playing.i===i?"cur":""}" id="c${i}">
+      <div class="top"><button class="tog" onclick="tog(${i})" aria-label="남기기">${c.keep?"✅":"⬜"}</button>
+        <div class="grow" onclick="playFrom(${i},false)" style="cursor:pointer"><b>#${i+1}</b> <span class="lab">${esc(label(c.label))}</span> <span class="mut small">${c.confidence!=null?(+c.confidence).toFixed(2):""}</span><br>
+        <span class="small">원본 ${fmt(c.start)} – ${fmt(c.end)} · ${(c.end-c.start).toFixed(1)}초${c.keep?` · 결과 ${fmt(out)}`:""}</span></div>
+        <button onclick="playFrom(${i},false)" aria-label="재생">▶</button></div>
+      ${c.reason?`<div class="mut small" style="margin-top:4px">${esc(c.reason.slice(0,140))}</div>`:""}
+      <div class="nudge"><button onclick="nudge(${i},'start',-1)">◀ 시작</button><button onclick="nudge(${i},'start',1)">시작 ▶</button><button onclick="nudge(${i},'end',-1)">◀ 끝</button><button onclick="nudge(${i},'end',1)">끝 ▶</button></div>
+    </div>`;
+    if (c.keep) out += c.end - c.start;
+    return html;
+  }).join("") : `<div class="card mut">남긴 구간이 없습니다. 다른 모드로 다시 해 보세요.</div>`;
+}
+function markDirty() { state.dirty = true; const b = $("#saveBtn"); if (b) b.disabled = false; }
+function tog(i) { state.clips[i].keep = !state.clips[i].keep; markDirty(); renderClips(); }
+function nudge(i, edge, dir) {
+  const c = state.clips[i]; const step = 0.5 * dir; const dur = (state.job.result.media||{}).duration || 1e9;
+  if (edge === "start") c.start = Math.max(0, Math.min(c.end - 0.3, c.start + step));
+  else c.end = Math.min(dur, Math.max(c.start + 0.3, c.end + step));
+  markDirty(); renderClips();
+  const v = $("#vid"); if (v) { v.currentTime = edge === "start" ? c.start : Math.max(c.start, c.end - 1.5); state.playing = {i, all:false}; v.play().catch(()=>{}); }
+}
+function playFrom(i, all) {
+  const list = state.clips; if (!list.length) return;
+  let k = i; if (all) { while (k < list.length && !list[k].keep) k++; if (k >= list.length) return; }
+  state.playing = {i:k, all};
+  const v = $("#vid"); v.currentTime = list[k].start; v.play().catch(()=>{});
+  document.querySelectorAll(".clip").forEach((el, n) => el.classList.toggle("cur", n === k));
+}
+function onTime() {
+  const p = state.playing; if (!p) return;
+  const v = $("#vid"); const c = state.clips[p.i]; if (!c) return;
+  if (v.currentTime >= c.end - 0.05) {
+    if (!p.all) { v.pause(); state.playing = null; return; }
+    let k = p.i + 1; while (k < state.clips.length && !state.clips[k].keep) k++;
+    if (k >= state.clips.length) { v.pause(); state.playing = null; return; }
+    playFrom(k, true);
+  }
+}
+async function saveClips() {
+  const ranges = state.clips.filter(c => c.keep).map(({start,end,label,confidence,reason}) => ({start,end,label,confidence,reason}));
+  if (!ranges.length) return toast("남길 클립이 하나는 있어야 합니다.");
+  try {
+    const r = await api(`api/jobs/${state.job.id}/ranges`, {method:"POST", body: JSON.stringify({ranges})});
+    state.job.result = r; state.job.render = {}; state.dirty = false;
+    state.clips = r.ranges.map(x => ({...x, keep:true})); renderClips(); renderRenderState(state.job);
+    $("#saveBtn").disabled = true; toast("저장했습니다. 편집 초안(JSON)도 새로 만들었습니다.");
+  } catch (e) { toast(e.message); }
+}
+async function render() {
+  if (state.dirty && !confirm("저장하지 않은 변경이 있습니다. 저장하고 만들까요?")) return;
+  if (state.dirty) await saveClips();
+  const burn = $("#burn")?.checked;
+  const j = await api(`api/jobs/${state.job.id}/render`, {method:"POST", body: JSON.stringify({burn_subs: burn})});
+  state.job.render = j.render; renderRenderState(state.job); ensurePolling();
+  toast("PC에서 영상을 만드는 중입니다.");
+}
+async function makeProxy() { const j = await api(`api/jobs/${state.job.id}/proxy`, {method:"POST"}); state.job.proxy = j.proxy; renderRenderState(state.job); ensurePolling(); }
+function renderRenderState(j) {
+  const el = $("#renderState"); if (!el) return;
+  const r = j.render || {};
+  if (r.status === "running") el.innerHTML = `영상 만드는 중... ${Math.round((r.progress||0)*100)}%<div class="bar"><i style="width:${(r.progress||0)*100}%"></i></div>`;
+  else if (r.status === "done") el.innerHTML = `<span class="s-done">완성!</span> ${esc(r.file)} (${size(r.size||0)}) <a class="btn" style="margin-top:6px;width:100%" href="${BASE}api/jobs/${j.id}/output" download>⬇ 영상 받기</a>`;
+  else if (r.status === "error") el.innerHTML = `<span class="s-error">영상 만들기 실패</span><pre>${esc(r.error)}</pre>`;
+  else el.textContent = "아직 만들지 않았습니다. 결과 파일은 PC의 결과 폴더에도 저장됩니다.";
+  const ps = $("#proxyState"); const p = j.proxy || {};
+  if (ps) ps.textContent = p.status === "running" ? "가벼운 영상 만드는 중..." : p.status === "error" ? "가벼운 영상 실패" : p.status === "done" ? "준비됨" : "";
+  if (p.status === "done") { setSource(); if (state.pendingReel !== undefined) { const lite = state.pendingReel; state.pendingReel = undefined; openReel(lite); } }
+}
+function rerunAsk() {
+  const names = INFO.modes.map((m, i) => `${i+1}. ${m.title}`).join("\n");
+  const pick = prompt("어떤 모드로 다시 할까요? 번호를 적으세요.\n" + names + "\n(AI 분류는 저장돼 있어서 빨리 끝납니다)");
+  const m = INFO.modes[(+pick||0) - 1]; if (m) rerun({mode: m.name, prompt: null, max_total: null});
+}
+function openReel(lite) {
+  if (lite && state.job.proxy.status !== "done") { state.pendingReel = lite; makeProxy(); return toast("폰용 가벼운 영상을 만드는 중입니다. 다 되면 자동으로 엽니다."); }
+  const proxied = BASE !== "/";  // opened through OpenReel's /storycut/ proxy
+  let url;
+  if (proxied) url = `${location.origin}/#/editor?storycut=${encodeURIComponent(state.job.id)}${lite?"&sclite=1":""}`;
+  else {
+    const reel = INFO.openreel_url || `${location.protocol}//${location.hostname}:5173`;
+    url = `${reel.replace(/\/$/, "")}/#/editor?storycut=${encodeURIComponent(state.job.id)}&scbase=${encodeURIComponent(location.origin + BASE)}${lite?"&sclite=1":""}`;
+  }
+  location.href = url;
+}
+route();
+</script>
+</body>
+</html>

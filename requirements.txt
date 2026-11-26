@@ -4,3 +4,6 @@ scenedetect[opencv]>=0.6.4
 faster-whisper>=1.0.3
 httpx>=0.27
 numpy>=1.24
+fastapi>=0.110
+uvicorn>=0.29
+qrcode>=7.4
