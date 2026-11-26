@@ -74,6 +74,13 @@ def build_parser() -> argparse.ArgumentParser:
     sample.add_argument("--out", type=Path, required=True, help="저장할 mp4 경로")
     sample.add_argument("--scenes", type=int, default=4, help="장면 수. 기본 4")
     sample.add_argument("--scene-seconds", type=float, default=3.0, help="장면당 초. 기본 3")
+
+    fix = sub.add_parser(
+        "fix-json",
+        help="이미 만든 openreel-edit JSON에서 OpenReel이 거부하는 메타데이터 키를 제거합니다.",
+    )
+    fix.add_argument("input", type=Path, help="고칠 edit.json")
+    fix.add_argument("output", type=Path, help="저장할 JSON 경로")
     return parser
 
 
@@ -86,6 +93,12 @@ def main(argv: list[str] | None = None) -> int:
             from story_cut.fftool import make_sample_video
             dest = make_sample_video(args.out.expanduser(), scene_seconds=args.scene_seconds, scenes=args.scenes)
             print(f"테스트 영상을 만들었습니다: {dest}")
+            return 0
+
+        if args.command == "fix-json":
+            from story_cut.portable import fix_openreel_edit_file
+            dest = fix_openreel_edit_file(args.input, args.output)
+            print(f"정리한 초안을 저장했습니다: {dest}")
             return 0
 
         keep = tuple(part.strip() for part in str(args.keep).split(",") if part.strip())

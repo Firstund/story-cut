@@ -4,6 +4,7 @@ from pathlib import Path
 
 from story_cut.fftool import MediaInfo
 from story_cut.ids import make_id
+from story_cut.portable import sanitize_portable_edit
 from story_cut.merge import KeptRange, cue_groups, words_in_ranges
 from story_cut.transcribe import Transcript
 
@@ -155,4 +156,4 @@ def build_openreel_edit(
             "textClips": [],
         },
     }
-    return doc
+    return sanitize_portable_edit(doc)

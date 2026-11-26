@@ -90,6 +90,14 @@ story-cut analyze "C:\Videos\gameplay.mp4" --out edit.json --backend lmstudio --
 3. AI 편집 쪽의 **Import edit JSON**으로 `edit.json`을 가져옵니다.
 4. 보고서와 타임라인의 마커를 보고, 잘못된 구간을 고칩니다.
 
+이미 만든 `edit.json`을 다시 분석하지 않고 정리만 하려면:
+
+```powershell
+story-cut fix-json edit.json edit-fixed.json
+```
+
+OpenReel이 `metadata.sourceColor: unsupported property` 같은 오류를 내면, 초안에 색공간 같은 런타임 키가 들어 있거나(이 명령으로 제거됩니다), 원본 영상을 연결한 뒤 OpenReel이 그 키를 다시 검증하는 경우가 있습니다. 후자면 OpenReel `packages/core/src/editing/portable-project.ts`의 `portableMediaMetadata`가 `sourceColor`를 제거하도록 고친 버전이 필요합니다.
+
 ## 자주 쓰는 옵션
 
 | 옵션 | 의미 |
